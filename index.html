@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宁波地区野外徒步路线推荐</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: #f7f9f4;
+      color: #2c3e2f;
+      padding: 20px;
+      max-width: 960px;
+      margin: auto;
+    }
+    h1 { text-align: center; margin-bottom: 30px; color: #3a5a40; }
+
+    /* 筛选区 */
+    .filter-section {
+      background: #fff; border-radius: 12px; padding: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 30px;
+    }
+    .filter-title { font-weight: 600; margin-bottom: 12px; color: #588157; }
+    .tag-container { display: flex; flex-wrap: wrap; gap: 10px; }
+    .tag {
+      padding: 8px 18px; border-radius: 30px; background: #e9f5e0;
+      color: #3a5a40; font-size: 0.95rem; cursor: pointer;
+      border: 2px solid transparent; transition: all 0.2s; user-select: none;
+    }
+    .tag:hover { background: #d4eac8; }
+    .tag.active { background: #588157; color: white; border-color: #3a5a40; font-weight: 600; }
+
+    /* 卡片网格 */
+    .routes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .route-card {
+      background: white; border-radius: 14px; overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05); cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .route-card:hover { transform: translateY(-3px); }
+    .route-card img {
+      width: 100%; height: 180px; object-fit: cover; display: block;
+    }
+    .card-content { padding: 15px; }
+    .route-name { font-size: 1.3rem; font-weight: 700; color: #344e41; margin-bottom: 4px; }
+    .route-points { font-size: 0.9rem; color: #777; margin-bottom: 8px; }
+    .route-intro { font-size: 0.95rem; color: #555; margin-bottom: 12px; }
+    .route-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .route-tag {
+      background: #dad7cd; color: #3a5a40; padding: 3px 10px;
+      border-radius: 20px; font-size: 0.75rem; font-weight: 500;
+    }
+    .empty-message {
+      text-align: center; color: #888; font-size: 1.1rem; padding: 40px 20px;
+    }
+
+    /* 详情页样式 */
+    .detail-container {
+      background: white; border-radius: 14px; padding: 25px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    }
+    .back-btn {
+      display: inline-block; margin-bottom: 20px; padding: 8px 20px;
+      background: #e9f5e0; color: #3a5a40; border-radius: 25px;
+      cursor: pointer; font-weight: 600; border: none; font-size: 1rem;
+    }
+    .back-btn:hover { background: #d4eac8; }
+    .detail-header { margin-bottom: 20px; }
+    .detail-header h2 { font-size: 1.8rem; color: #344e41; }
+    .detail-meta { color: #666; margin-top: 5px; }
+    .detail-map { max-width: 100%; border-radius: 10px; margin-bottom: 20px; }
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h3 { color: #588157; margin-bottom: 8px; }
+    .detail-images { display: flex; gap: 10px; flex-wrap: wrap; }
+    .detail-images img {
+      width: calc(50% - 5px); border-radius: 8px; object-fit: cover;
+    }
+    @media (max-width: 600px) {
+      .detail-images img { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🥾 野外徒步路线推荐</h1>
+
+  <!-- 筛选区和路线列表 (id="listView") -->
+  <div id="listView">
+    <div class="filter-section">
+      <div class="filter-title">点击标签筛选（可多选）</div>
+      <div class="tag-container" id="tagContainer"></div>
+    </div>
+    <div class="routes-grid" id="routesContainer"></div>
+  </div>
+
+  <!-- 路线详情页 (id="detailView"，初始隐藏) -->
+  <div id="detailView" style="display: none;">
+    <div class="detail-container" id="detailContent"></div>
+  </div>
+
+  <!-- 加载路线数据 -->
+  <script src="routes.js"></script>
+
+  <script>
+    (function() {
+      // 视图元素
+      const listView = document.getElementById("listView");
+      const detailView = document.getElementById("detailView");
+      const detailContent = document.getElementById("detailContent");
+      const tagContainer = document.getElementById("tagContainer");
+      const routesContainer = document.getElementById("routesContainer");
+
+      // 当前选中的标签
+      const activeTags = new Set();
+
+      // 收集所有不重复标签
+      const allTags = [...new Set(routes.flatMap(r => r.tags))].sort();
+
+      // 渲染标签按钮
+      function renderTags() {
+        tagContainer.innerHTML = "";
+        allTags.forEach(tag => {
+          const btn = document.createElement("span");
+          btn.className = `tag ${activeTags.has(tag) ? "active" : ""}`;
+          btn.textContent = tag;
+          btn.addEventListener("click", () => {
+            if (activeTags.has(tag)) {
+              activeTags.delete(tag);
+            } else {
+              activeTags.add(tag);
+            }
+            renderTags();
+            renderCards();
+          });
+          tagContainer.appendChild(btn);
+        });
+      }
+
+      // 根据标签渲染简略卡片
+      function renderCards() {
+        routesContainer.innerHTML = "";
+        const filtered = routes.filter(route => {
+          if (activeTags.size === 0) return true;
+          return [...activeTags].every(tag => route.tags.includes(tag));
+        });
+
+        if (filtered.length === 0) {
+          routesContainer.innerHTML = '<div class="empty-message">😕 没有匹配的路线，试试调整标签～</div>';
+          return;
+        }
+
+        filtered.forEach(route => {
+          const card = document.createElement("div");
+          card.className = "route-card";
+          card.innerHTML = `
+            <img src="${route.thumbnail}" alt="${route.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22180%22%3E%3Crect fill=%22%23ddd%22 width=%22300%22 height=%22180%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E暂无图片%3C/text%3E%3C/svg%3E';">
+            <div class="card-content">
+              <div class="route-name">${route.name}</div>
+              <div class="route-points">${route.start} → ${route.end}</div>
+              <div class="route-intro">${route.intro}</div>
+              <div class="route-tags">
+                ${route.tags.map(t => `<span class="route-tag">${t}</span>`).join("")}
+              </div>
+            </div>
+          `;
+          card.addEventListener("click", () => {
+            window.location.hash = `/route/${route.id}`;
+          });
+          routesContainer.appendChild(card);
+        });
+      }
+
+      // 根据 id 获取路线数据
+      function getRouteById(id) {
+        return routes.find(r => r.id == id);
+      }
+
+      // 渲染详情页
+      function renderDetail(id) {
+        const route = getRouteById(id);
+        if (!route) {
+          detailContent.innerHTML = '<p>路线未找到</p>';
+          return;
+        }
+        const d = route.detail;
+        detailContent.innerHTML = `
+          <button class="back-btn" onclick="window.location.hash='';">← 返回列表</button>
+          <div class="detail-header">
+            <h2>${route.name}</h2>
+            <div class="detail-meta">${route.start} → ${route.end} | ${d.distance} | ${d.duration}</div>
+          </div>
+          <img class="detail-map" src="${d.mapImage}" alt="路线地图" onerror="this.style.display='none'">
+          <div class="detail-section">
+            <h3>路线简介</h3>
+            <p>${d.fullDescription}</p>
+          </div>
+          <div class="detail-section">
+            <h3>实用信息</h3>
+            <p><strong>难度：</strong>${d.difficulty}</p>
+            <p><strong>最佳季节：</strong>${d.bestSeason}</p>
+            <p><strong>小贴士：</strong>${d.tips}</p>
+          </div>
+          ${d.images && d.images.length > 0 ? `
+            <div class="detail-section">
+              <h3>沿途风光</h3>
+              <div class="detail-images">
+                ${d.images.map(img => `<img src="${img}" alt="风光图">`).join("")}
+              </div>
+            </div>
+          ` : ""}
+        `;
+      }
+
+      // 监听 hash 变化，切换视图
+      function handleHashChange() {
+        const hash = window.location.hash;
+        const match = hash.match(/^#\/route\/(\d+)$/);
+        if (match) {
+          const routeId = match[1];
+          listView.style.display = "none";
+          detailView.style.display = "block";
+          renderDetail(routeId);
+        } else {
+          listView.style.display = "block";
+          detailView.style.display = "none";
+        }
+      }
+
+      window.addEventListener("hashchange", handleHashChange);
+
+      // 初始加载
+      renderTags();
+      renderCards();
+      handleHashChange(); // 处理可能存在的直接访问详情链接
+    })();
+  </script>
+</body>
+</html>
